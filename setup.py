@@ -7,7 +7,7 @@ with open('README.md') as fp:
 
 setup(
     name='certbot-dns-valuedomain',
-    version='1.0.0',
+    version='1.1.0',
     author='chrono-meter@gmx.net',
     author_email='chrono-meter@gmx.net',
     description='Certbot plugin for authentication using value-domain',
@@ -19,7 +19,6 @@ setup(
     install_requires=[
         'certbot',
         'requests',
-        'beautifulsoup4',
         # 'dnspython',
     ],
     entry_points={
