@@ -10,7 +10,7 @@ $ certbot plugins
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 * certbot-dns-valuedomain:dns
 Description: Obtain certificates using a DNS TXT record (if you are using
-value-domain for DNS).
+value-domain API for DNS).
 Interfaces: IAuthenticator, IPlugin
 Entry point: dns = certbot_dns_valuedomain:Authenticator
 
@@ -23,8 +23,7 @@ Entry point: dns = certbot_dns_valuedomain:Authenticator
 
 ```sh
 $ cat << EOF | sudo tee /etc/letsencrypt/valuedomain.ini
-certbot_dns_valuedomain:dns_username = YOUR_VALUEDOMAIN_USERNAME
-certbot_dns_valuedomain:dns_password = YOUR_VALUEDOMAIN_PASSWORD
+certbot_dns_valuedomain:dns_valuedomain_api_key = YOUR_VALUEDOMAIN_API_KEY
 EOF
 
 ...
