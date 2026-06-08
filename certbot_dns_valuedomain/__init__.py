@@ -12,27 +12,22 @@ class ValueDomain(object):
     def __init__(self):
         self.session = requests.Session()
         self.api_key = None
+        self.root_domain = None
         self.ns_type = 'valuedomain1'
         self.ttl = '1200'
 
-    def login(self, api_key):
-        """Store the API key retrieved from the INI configuration file."""
+    def login(self, api_key, root_domain):
         self.api_key = api_key
-        if not self.api_key:
-            raise certbot.errors.PluginError('API key is not configured.')
+        self.root_domain = root_domain
+        if not self.api_key or not self.root_domain:
+            raise certbot.errors.PluginError('API key or Root Domain is not configured.')
 
-    def logout(self):
-        """No logout operation is required for the API-based authentication."""
-        pass
-
-    def get_dns_records(self, domain):
-        """Retrieve the current DNS records (ns information) via Value Domain API."""
-        url = f'https://api.value-domain.com/v1/domains/{domain}/dns'
+    def get_dns_records(self):
+        url = f'https://api.value-domain.com/v1/domains/{self.root_domain}/dns'
         headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
         }
-        
         try:
             response = self.session.get(url, headers=headers)
             response.raise_for_status()
@@ -46,20 +41,17 @@ class ValueDomain(object):
         except requests.exceptions.RequestException as e:
             raise certbot.errors.PluginError(f'Failed to get DNS records from Value Domain API: {e}')
 
-    def set_dns_records(self, domain, records):
-        """Update and overwrite the DNS records via Value Domain API."""
-        url = f'https://api.value-domain.com/v1/domains/{domain}/dns'
+    def set_dns_records(self, records):
+        url = f'https://api.value-domain.com/v1/domains/{self.root_domain}/dns'
         headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
         }
-        
         data = {
             'ns_type': self.ns_type,
             'records': records,
             'ttl': self.ttl
         }
-        
         try:
             response = self.session.put(url, headers=headers, json=data)
             response.raise_for_status()
@@ -70,8 +62,6 @@ class ValueDomain(object):
 @zope.interface.implementer(certbot.interfaces.IAuthenticator)
 @zope.interface.provider(certbot.interfaces.IPluginFactory)
 class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
-    """DNS Authenticator for value-domain using official API.
-    """
 
     description = 'Obtain certificates using a DNS TXT record (if you are using value-domain API for DNS).'
 
@@ -81,80 +71,44 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         self.api = ValueDomain()
 
     @classmethod
-    def add_parser_arguments(cls, add):  # pylint: disable=arguments-differ
+    def add_parser_arguments(cls, add):
         super(Authenticator, cls).add_parser_arguments(add)
-        add('credentials',
-            metavar='PATH',
-            default='/etc/letsencrypt/valuedomain.ini',
-            help='Path to credentials INI file.')
-        add('max-propagation-seconds',
-            type=int,
-            metavar='SECONDS',
-            default=120,
-            help='The number of maximum seconds to watch for DNS to propagate before asking the ACME server '
-                 'to verify the DNS record.')
+        add('credentials', metavar='PATH', default='/etc/letsencrypt/valuedomain.ini', help='Path to credentials INI file.')
 
-    def more_info(self):  # pylint: disable=missing-docstring,no-self-use
-        return 'This plugin configures a DNS TXT record to respond to a dns-01 challenge using ' + \
-                'value-domain API.'
+    def more_info(self):
+        return 'This plugin configures a DNS TXT record to respond to a dns-01 challenge using value-domain API.'
 
-    def _setup_credentials(self):  # pylint: disable=missing-docstring
+    def _setup_credentials(self):
         self.credentials = self._configure_credentials(
             'credentials',
             'value-domain credentials INI file',
             {
                 'api_key': 'API Key for the value-domain account.',
+                'root_domain': 'Your registered root domain in Value Domain.'
             }
         )
+        self.api.login(self.credentials.conf('api_key'), self.credentials.conf('root_domain'))
 
-        self.api.login(self.credentials.conf('api_key'))
+    def _perform(self, domain, validation_name, validation):
+        records = self.api.get_dns_records()
 
-    def _perform(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        zone_domain = self._find_zone_domain(domain, validation_name)
-        records = self.api.get_dns_records(zone_domain)
-        self.api.set_dns_records(
-            zone_domain, records.strip() + '\n' + self._build_record_string(zone_domain, validation_name, validation))
-       
+        record_line = f'txt {validation_name} {validation}'
+
+        self.api.set_dns_records(records.strip() + '\n' + record_line)
+
         logger.info("Waiting for DNS records to propagate to Value Domain nameservers...")
         time.sleep(self.conf('max-propagation-seconds'))
-    
-    def _cleanup(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        zone_domain = self._find_zone_domain(domain, validation_name)
-        records = self.api.get_dns_records(zone_domain).splitlines()
-        record = self._build_record_string(zone_domain, validation_name, validation)
+
+    def _cleanup(self, domain, validation_name, validation):
+        records = self.api.get_dns_records().splitlines()
+        record = f'txt {validation_name} {validation}'
 
         try:
             if record in records:
                 records.remove(record)
             else:
-                # Handle potential formatting or whitespace discrepancies
                 records = [line for line in records if record.strip() not in line.strip()]
-                
-            self.api.set_dns_records(zone_domain, '\n'.join(records))
+
+            self.api.set_dns_records('\n'.join(records))
         except LookupError:
             logger.exception('Failed to cleanup, validation record (%s) is not found.', record)
-
-    def _find_zone_domain(self, domain, validation_name):
-        """Helper to find the actual registered domain zone in Value Domain."""
-        domain_parts = domain.split('.')
-        if domain_parts[0] == '*':
-            domain_parts.pop(0)
-        clean_domain = '.'.join(domain_parts)
-        
-        if validation_name.endswith('.' + clean_domain):
-            return clean_domain
-        return domain
-
-    def _build_record_string(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        prefix = '_acme-challenge'
-        
-        if validation_name == prefix:
-            subdomain = prefix
-        elif validation_name.startswith(prefix + '.'):
-            subdomain = validation_name
-            if subdomain.endswith('.' + domain):
-                subdomain = subdomain[:-(1 + len(domain))]
-        else:
-            subdomain = validation_name
-
-        return 'txt %s %s' % (subdomain, validation)
