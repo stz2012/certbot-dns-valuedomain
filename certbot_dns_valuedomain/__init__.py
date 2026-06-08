@@ -113,19 +113,22 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         records = self.api.get_dns_records(domain)
         self.api.set_dns_records(
             domain, records.strip() + '\n' + self._build_record_string(domain, validation_name, validation))
-
+       
+        logger.info("Waiting for DNS records to propagate to Value Domain nameservers...")
+        
         t = time.time()
         while (time.time() - t) < self.conf('max-propagation-seconds'):
 
             if validation in subprocess.run(['nslookup', '-type=txt', validation_name], stdout=subprocess.PIPE,
                                             stderr=subprocess.DEVNULL, universal_newlines=True).stdout:
+                logger.info("TXT record detected locally. Sleeping an additional 30 seconds for global propagation...")
+                time.sleep(30)
                 break
 
             time.sleep(self.conf('propagation-seconds'))
-
         else:
             raise certbot.errors.PluginError('max-propagation-seconds is exceeded.')
-
+    
     def _cleanup(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
         records = self.api.get_dns_records(domain).splitlines()
         record = self._build_record_string(domain, validation_name, validation)
