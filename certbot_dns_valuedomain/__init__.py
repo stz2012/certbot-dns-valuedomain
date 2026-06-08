@@ -90,7 +90,7 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         add('max-propagation-seconds',
             type=int,
             metavar='SECONDS',
-            default=3600,
+            default=120,
             help='The number of maximum seconds to watch for DNS to propagate before asking the ACME server '
                  'to verify the DNS record.')
 
@@ -114,8 +114,8 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         self.api.set_dns_records(
             domain, records.strip() + '\n' + self._build_record_string(domain, validation_name, validation))
        
-        logger.info("Sleeping 120 seconds for Value Domain DNS global propagation...")
-        time.sleep(120)
+        logger.info("Waiting for DNS records to propagate to Value Domain nameservers...")
+        time.sleep(self.conf('max-propagation-seconds'))
     
     def _cleanup(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
         records = self.api.get_dns_records(domain).splitlines()
