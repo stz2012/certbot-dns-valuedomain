@@ -8,11 +8,12 @@ $ sudo pip install certbot-dns-valuedomain
 $ certbot plugins
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-* certbot-dns-valuedomain:dns
+* dns-valuedomain
 Description: Obtain certificates using a DNS TXT record (if you are using
 value-domain API for DNS).
 Interfaces: IAuthenticator, IPlugin
-Entry point: dns-valuedomain = certbot_dns_valuedomain:Authenticator
+Entry point: EntryPoint(name='dns-valuedomain',
+value='certbot_dns_valuedomain:Authenticator', group='certbot.plugins')
 
 ...
 
@@ -33,7 +34,7 @@ $ sudo chmod 600 /etc/letsencrypt/valuedomain.ini
 
 ...
 
-$ sudo certbot certonly --authenticator certbot-dns-valuedomain:dns --domain example.com --domain *.example.com --manual-public-ip-logging-ok --preferred-challenges dns-01
+$ sudo certbot certonly --authenticator dns-valuedomain --domain example.com --domain *.example.com --preferred-challenges dns
 
 ...
 ```
@@ -42,7 +43,7 @@ $ sudo certbot certonly --authenticator certbot-dns-valuedomain:dns --domain exa
 # Options
 
 ```sh
-$ certbot --help certbot-dns-valuedomain:dns
+$ certbot --help dns-valuedomain
 usage:
   certbot [SUBCOMMAND] [options] [-d DOMAIN] [-d DOMAIN] ...
 
@@ -50,27 +51,27 @@ Certbot can obtain and install HTTPS/TLS/SSL certificates.  By default,
 it will attempt to use a webserver both for obtaining and installing the
 certificate.
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
-  -c CONFIG_FILE, --config CONFIG_FILE
+  -c, --config CONFIG_FILE
                         path to config file (default: /etc/letsencrypt/cli.ini
                         and ~/.config/letsencrypt/cli.ini)
 
-certbot-dns-valuedomain:dns:
+dns-valuedomain:
   Obtain certificates using a DNS TXT record (if you are using value-domain
-  for DNS).
+  API for DNS).
 
-  --certbot-dns-valuedomain:dns-propagation-seconds CERTBOT_DNS_VALUEDOMAIN:DNS_PROPAGATION_SECONDS
+  --dns-valuedomain-propagation-seconds DNS_VALUEDOMAIN_PROPAGATION_SECONDS
                         The number of seconds to wait for DNS to propagate
                         before asking the ACME server to verify the DNS
                         record. (default: 10)
-  --certbot-dns-valuedomain:dns-credentials PATH
+  --dns-valuedomain-credentials PATH
                         Path to credentials INI file. (default:
                         /etc/letsencrypt/valuedomain.ini)
-  --certbot-dns-valuedomain:dns-max-propagation-seconds SECONDS
+  --dns-valuedomain-max-propagation-seconds SECONDS
                         The number of maximum seconds to watch for DNS to
                         propagate before asking the ACME server to verify the
-                        DNS record. (default: 3600)
+                        DNS record. (default: 1200)
 ```
 
 # Links
