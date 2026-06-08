@@ -146,7 +146,15 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         return domain
 
     def _build_record_string(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        assert validation_name.endswith('.' + domain)
-        subdomain = validation_name[:-(1 + len(domain))]
+        prefix = '_acme-challenge'
+        
+        if validation_name == prefix:
+            subdomain = prefix
+        elif validation_name.startswith(prefix + '.'):
+            subdomain = validation_name
+            if subdomain.endswith('.' + domain):
+                subdomain = subdomain[:-(1 + len(domain))]
+        else:
+            subdomain = validation_name
 
         return 'txt %s %s' % (subdomain, validation)
