@@ -77,7 +77,7 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
             metavar='PATH',
             default='/etc/letsencrypt/valuedomain.ini',
             help='Path to credentials INI file.')
-        add('propagation-seconds',
+        add('max-propagation-seconds',
             type=int,
             metavar='SECONDS',
             default=120,
