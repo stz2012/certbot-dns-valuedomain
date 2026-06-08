@@ -23,7 +23,7 @@ Entry point: dns-valuedomain = certbot_dns_valuedomain:Authenticator
 
 ```sh
 $ cat << EOF | sudo tee /etc/letsencrypt/valuedomain.ini
-certbot_dns_valuedomain:dns_api_key = YOUR_VALUEDOMAIN_API_KEY
+certbot_dns_valuedomain:dns_valuedomain_api_key = YOUR_VALUEDOMAIN_API_KEY
 EOF
 
 ...
