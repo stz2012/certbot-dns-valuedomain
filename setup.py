@@ -23,7 +23,7 @@ setup(
     ],
     entry_points={
         'certbot.plugins': [
-            'dns = certbot_dns_valuedomain:Authenticator',
+            'dns-valuedomain = certbot_dns_valuedomain:Authenticator',
         ],
     },
     classifiers=[
