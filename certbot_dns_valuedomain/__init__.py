@@ -114,8 +114,8 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         self.api.set_dns_records(
             domain, records.strip() + '\n' + self._build_record_string(domain, validation_name, validation))
        
-        logger.info("Sleeping 90 seconds for Value Domain DNS global propagation...")
-        time.sleep(90)
+        logger.info("Sleeping 120 seconds for Value Domain DNS global propagation...")
+        time.sleep(120)
     
     def _cleanup(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
         records = self.api.get_dns_records(domain).splitlines()
