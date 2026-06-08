@@ -73,7 +73,16 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
     @classmethod
     def add_parser_arguments(cls, add):
         super(Authenticator, cls).add_parser_arguments(add)
-        add('credentials', metavar='PATH', default='/etc/letsencrypt/valuedomain.ini', help='Path to credentials INI file.')
+        add('credentials',
+            metavar='PATH',
+            default='/etc/letsencrypt/valuedomain.ini',
+            help='Path to credentials INI file.')
+        add('propagation-seconds',
+            type=int,
+            metavar='SECONDS',
+            default=120,
+            help='The number of maximum seconds to watch for DNS to propagate before asking the ACME server '
+                 'to verify the DNS record.')
 
     def more_info(self):
         return 'This plugin configures a DNS TXT record to respond to a dns-01 challenge using value-domain API.'
