@@ -12,6 +12,8 @@ class ValueDomain(object):
     def __init__(self):
         self.session = requests.Session()
         self.api_key = None
+        self.ns_type = 'valuedomain1'
+        self.ttl = '1200'
 
     def login(self, api_key):
         """Store the API key retrieved from the INI configuration file."""
@@ -35,7 +37,12 @@ class ValueDomain(object):
             response = self.session.get(url, headers=headers)
             response.raise_for_status()
             res_json = response.json()
-            return res_json.get('ns', '')
+            
+            results = res_json.get('results', {})
+            self.ns_type = results.get('ns_type', 'valuedomain1')
+            self.ttl = results.get('ttl', '1200')
+            
+            return results.get('records', '')
         except requests.exceptions.RequestException as e:
             raise certbot.errors.PluginError(f'Failed to get DNS records from Value Domain API: {e}')
 
@@ -46,7 +53,12 @@ class ValueDomain(object):
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
         }
-        data = {'ns': records}
+        
+        data = {
+            'ns_type': self.ns_type,
+            'records': records,
+            'ttl': self.ttl
+        }
         
         try:
             response = self.session.put(url, headers=headers, json=data)
