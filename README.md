@@ -12,7 +12,7 @@ $ certbot plugins
 Description: Obtain certificates using a DNS TXT record (if you are using
 value-domain API for DNS).
 Interfaces: IAuthenticator, IPlugin
-Entry point: dns = certbot_dns_valuedomain:Authenticator
+Entry point: dns-valuedomain = certbot_dns_valuedomain:Authenticator
 
 ...
 
