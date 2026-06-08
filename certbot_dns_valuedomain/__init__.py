@@ -110,16 +110,18 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         self.api.login(self.credentials.conf('api_key'))
 
     def _perform(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        records = self.api.get_dns_records(domain)
+        zone_domain = self._find_zone_domain(domain, validation_name)
+        records = self.api.get_dns_records(zone_domain)
         self.api.set_dns_records(
-            domain, records.strip() + '\n' + self._build_record_string(domain, validation_name, validation))
+            zone_domain, records.strip() + '\n' + self._build_record_string(zone_domain, validation_name, validation))
        
         logger.info("Waiting for DNS records to propagate to Value Domain nameservers...")
         time.sleep(self.conf('max-propagation-seconds'))
     
     def _cleanup(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        records = self.api.get_dns_records(domain).splitlines()
-        record = self._build_record_string(domain, validation_name, validation)
+        zone_domain = self._find_zone_domain(domain, validation_name)
+        records = self.api.get_dns_records(zone_domain).splitlines()
+        record = self._build_record_string(zone_domain, validation_name, validation)
 
         try:
             if record in records:
@@ -128,9 +130,20 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
                 # Handle potential formatting or whitespace discrepancies
                 records = [line for line in records if record.strip() not in line.strip()]
                 
-            self.api.set_dns_records(domain, '\n'.join(records))
+            self.api.set_dns_records(zone_domain, '\n'.join(records))
         except LookupError:
             logger.exception('Failed to cleanup, validation record (%s) is not found.', record)
+
+    def _find_zone_domain(self, domain, validation_name):
+        """Helper to find the actual registered domain zone in Value Domain."""
+        domain_parts = domain.split('.')
+        if domain_parts[0] == '*':
+            domain_parts.pop(0)
+        clean_domain = '.'.join(domain_parts)
+        
+        if validation_name.endswith('.' + clean_domain):
+            return clean_domain
+        return domain
 
     def _build_record_string(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
         assert validation_name.endswith('.' + domain)
