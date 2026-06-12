@@ -39,7 +39,7 @@ pip install -e .
 
 ## 必要条件
 
-- Python 3.6以上
+- Python 3.8以上
 - Certbot 1.1.0以上
 - ValueDomainアカウント（API利用可能）
 - ValueDomainで管理されているドメイン
