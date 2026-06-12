@@ -3,6 +3,7 @@
 import logging
 import time
 import requests
+import zope.interface
 from typing import Optional, Callable, List, Dict, Any
 
 from certbot import errors
@@ -16,6 +17,8 @@ DEFAULT_TIMEOUT = 30
 DEFAULT_RETRY_COUNT = 3
 
 
+@zope.interface.implementer(certbot.interfaces.IAuthenticator)
+@zope.interface.provider(certbot.interfaces.IPluginFactory)
 class Authenticator(dns_common.DNSAuthenticator):
     """DNS Authenticator for ValueDomain
 
