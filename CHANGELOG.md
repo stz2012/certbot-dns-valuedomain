@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unit tests with pytest
 - Code coverage reporting
 - CI/CD pipeline with GitHub Actions
-- Automated testing for Python 3.6-3.11
+- Automated testing for Python 3.9-3.12
 - Code quality checks (Black, Flake8, MyPy)
 - Comprehensive documentation in English
 - Comprehensive documentation in Japanese
