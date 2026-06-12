@@ -1,0 +1,11 @@
+# ValueDomain API Credentials
+# Copy this file to a secure location and update with your actual credentials
+# Recommended: ~/.secrets/certbot/valuedomain.ini
+# Don't forget to set permissions: chmod 600 valuedomain.ini
+
+# Your ValueDomain API Key
+# Get it from: https://www.value-domain.com/ (API Settings)
+dns_valuedomain_api_key = your_api_key_here
+
+# Your domain name managed by ValueDomain
+dns_valuedomain_domain = example.com
