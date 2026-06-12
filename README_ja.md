@@ -1,6 +1,6 @@
 # certbot-dns-valuedomain
 
-[![CI](https://github.com/stz2012/certbot-dns-valuedomain/workflows/CI/badge.svg)](https://github.com/stz2012/certbot-dns-valuedomain/actions)
+[![CI](https://github.com/chrono-meter/certbot-dns-valuedomain/workflows/CI/badge.svg)](https://github.com/chrono-meter/certbot-dns-valuedomain/actions)
 [![PyPI version](https://badge.fury.io/py/certbot-dns-valuedomain.svg)](https://badge.fury.io/py/certbot-dns-valuedomain)
 [![Python Versions](https://img.shields.io/pypi/pyversions/certbot-dns-valuedomain.svg)](https://pypi.org/project/certbot-dns-valuedomain/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -32,7 +32,7 @@ pip install certbot-dns-valuedomain
 ### ソースからインストール
 
 ```bash
-git clone https://github.com/stz2012/certbot-dns-valuedomain.git
+git clone https://github.com/chrono-meter/certbot-dns-valuedomain.git
 cd certbot-dns-valuedomain
 pip install -e .
 ```
@@ -221,7 +221,7 @@ dns_valuedomain_domain = example.com
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/stz2012/certbot-dns-valuedomain.git
+git clone https://github.com/chrono-meter/certbot-dns-valuedomain.git
 cd certbot-dns-valuedomain
 
 # 仮想環境を作成
@@ -314,9 +314,9 @@ pytest tests/ --cov=certbot_dns_valuedomain
 
 ## サポート
 
-- **Issues:** [GitHub Issues](https://github.com/stz2012/certbot-dns-valuedomain/issues)
-- **ドキュメント:** [GitHub Wiki](https://github.com/stz2012/certbot-dns-valuedomain/wiki)
-- **ディスカッション:** [GitHub Discussions](https://github.com/stz2012/certbot-dns-valuedomain/discussions)
+- **Issues:** [GitHub Issues](https://github.com/chrono-meter/certbot-dns-valuedomain/issues)
+- **ドキュメント:** [GitHub Wiki](https://github.com/chrono-meter/certbot-dns-valuedomain/wiki)
+- **ディスカッション:** [GitHub Discussions](https://github.com/chrono-meter/certbot-dns-valuedomain/discussions)
 
 ## 謝辞
 
@@ -344,6 +344,7 @@ pytest tests/ --cov=certbot_dns_valuedomain
 
 ## 著者
 
+**chrono-meter**
 **stz2012**
 
 ## プロジェクトステータス
