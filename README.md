@@ -1,6 +1,6 @@
 # certbot-dns-valuedomain
 
-[![CI](https://github.com/chrono-meter/certbot-dns-valuedomain/workflows/CI/badge.svg)](https://github.com/chrono-meter/certbot-dns-valuedomain/actions)
+[![CI](https://github.com/chrono-meter/certbot-dns-valuedomain/actions/workflows/ci.yml/badge.svg)](https://github.com/chrono-meter/certbot-dns-valuedomain/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/certbot-dns-valuedomain.svg)](https://badge.fury.io/py/certbot-dns-valuedomain)
 [![Python Versions](https://img.shields.io/pypi/pyversions/certbot-dns-valuedomain.svg)](https://pypi.org/project/certbot-dns-valuedomain/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
