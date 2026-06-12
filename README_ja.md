@@ -150,6 +150,21 @@ certbot certonly --dry-run
 5. APIキーを認証情報ファイルにコピー
 6. ドメインがValueDomainで適切に設定されていることを確認
 
+## ValueDomain API
+
+このプラグインはValueDomain REST API v1を使用しています：
+
+- **DNS レコード取得**: `GET /domains/{domain}/dns`
+- **DNS レコード設定**: `PUT /domains/{domain}/dns`
+
+API ドキュメント: https://www.value-domain.com/api/doc/domain/
+
+### 認証方法
+
+プラグインはBearerトークン認証を使用します：
+
+Authorization: Bearer YOUR_API_KEY
+
 ## トラブルシューティング
 
 ### DNS伝播エラー
@@ -333,14 +348,6 @@ pytest tests/ --cov=certbot_dns_valuedomain
 ## 変更履歴
 
 各バージョンの変更リストについては[CHANGELOG.md](CHANGELOG.md)をご覧ください。
-
-## ロードマップ
-
-- [ ] 単一の認証情報ファイルでの複数ドメインサポート
-- [ ] 強化されたロギングオプション
-- [ ] Dockerコンテナサポート
-- [ ] ValueDomain APIサンドボックスとの統合テスト
-- [ ] パフォーマンスの最適化
 
 ## 著者
 

@@ -150,6 +150,21 @@ certbot certonly --dry-run
 5. Copy the API key to your credentials file
 6. Ensure your domain is properly configured in ValueDomain
 
+## ValueDomain API
+
+This plugin uses the ValueDomain REST API v1:
+
+- **Get DNS records**: `GET /domains/{domain}/dns`
+- **Set DNS records**: `PUT /domains/{domain}/dns`
+
+API Documentation: https://www.value-domain.com/api/doc/domain/
+
+### Authentication
+
+The plugin uses Bearer token authentication:
+
+Authorization: Bearer YOUR_API_KEY
+
 ## Troubleshooting
 
 ### DNS Propagation Errors
@@ -333,14 +348,6 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each version.
-
-## Roadmap
-
-- [ ] Support for multiple domains in single credentials file
-- [ ] Enhanced logging options
-- [ ] Docker container support
-- [ ] Integration tests with ValueDomain API sandbox
-- [ ] Performance optimizations
 
 ## Author
 
