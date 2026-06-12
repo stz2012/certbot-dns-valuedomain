@@ -1,0 +1,36 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published] # GitHubでRelease（Tag）が公開されたときに起動
+
+jobs:
+  pypi-publish:
+    name: Build and publish Python distribution to PyPI
+    runs-on: ubuntu-latest
+    
+    # Trusted Publishersを使用するために必須の権限設定
+    permissions:
+      id-token: write # PyPIとのOIDC認証に必要
+      contents: read  # コードのチェックアウトに必要
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+
+    - name: Build a binary wheel and a source tarball
+      run: python -m build
+
+    - name: Publish distribution to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      # id-token: write 権限があるため、APIトークンの設定（with: password: ...）は不要です
