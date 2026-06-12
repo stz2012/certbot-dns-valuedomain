@@ -3,10 +3,12 @@
 import logging
 import time
 import requests
-import zope.interface
 from typing import Optional, Callable, List, Dict, Any
 
+import zope.interface
+
 from certbot import errors
+from certbot import interfaces
 from certbot.plugins import dns_common
 from certbot.plugins.dns_common import CredentialsConfiguration
 
@@ -17,8 +19,8 @@ DEFAULT_TIMEOUT = 30
 DEFAULT_RETRY_COUNT = 3
 
 
-@zope.interface.implementer(certbot.interfaces.IAuthenticator)
-@zope.interface.provider(certbot.interfaces.IPluginFactory)
+@zope.interface.implementer(interfaces.IAuthenticator)
+@zope.interface.provider(interfaces.IPluginFactory)
 class Authenticator(dns_common.DNSAuthenticator):
     """DNS Authenticator for ValueDomain
 
@@ -40,23 +42,13 @@ class Authenticator(dns_common.DNSAuthenticator):
         default_propagation_seconds: int = DEFAULT_PROPAGATION_SECONDS,
     ) -> None:
         super(Authenticator, cls).add_parser_arguments(add, default_propagation_seconds)
-        add("credentials", help="ValueDomain credentials INI file.", default=None)
-        add(
-            "propagation-seconds",
-            help=f"The number of seconds to wait for DNS to propagate before asking the ACME server to verify the DNS record. (default: {default_propagation_seconds})",
-            default=default_propagation_seconds,
-            type=int,
-        )
+        add("credentials", help="ValueDomain credentials INI file.")
 
     def more_info(self) -> str:
         return "This plugin configures a DNS TXT record to respond to a dns-01 challenge using the ValueDomain API."
 
     def _setup_credentials(self) -> None:
         """Setup ValueDomain credentials."""
-        credentials_path = self.conf("credentials")
-        if not credentials_path:
-            raise errors.PluginError("--dns-valuedomain-credentials is required")
-
         self.credentials = self._configure_credentials(
             "credentials",
             "ValueDomain credentials INI file",
@@ -260,7 +252,6 @@ class ValueDomainClient:
         url = f"{self.API_BASE_URL}/domains/{self.domain}/dns"
 
         # APIに送信するデータ形式
-        # ドキュメントに応じて調整が必要
         payload = {"records": records}
 
         self._make_request("PUT", url, json=payload)
