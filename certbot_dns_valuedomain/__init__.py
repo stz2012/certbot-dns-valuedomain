@@ -4,60 +4,66 @@ import logging
 import certbot.interfaces, certbot.errors, certbot.plugins.dns_common
 import zope.interface
 import requests
-from bs4 import BeautifulSoup
-
 
 logger = logging.getLogger(__name__)
-
 
 class ValueDomain(object):
 
     def __init__(self):
         self.session = requests.Session()
+        self.api_key = None
+        self.root_domain = None
+        self.ns_type = 'valuedomain1'
+        self.ttl = '1200'
 
-    def login(self, username, password):
-        response = self.session.post('https://www.value-domain.com/login.php', data={
-            'username': username,
-            'password': password,
-            'action': 'login2',
-            'location': '',
-            # 'submit': 'ログイン',
-        })
-        assert 'var is_login = 1;' in response.text
+    def login(self, api_key, root_domain):
+        self.api_key = api_key
+        self.root_domain = root_domain
+        if not self.api_key or not self.root_domain:
+            raise certbot.errors.PluginError('API key or Root Domain is not configured.')
 
-    def logout(self):
-        self.session.get('https://www.value-domain.com/logout.php')
+    def get_dns_records(self):
+        url = f'https://api.value-domain.com/v1/domains/{self.root_domain}/dns'
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json'
+        }
+        try:
+            response = self.session.get(url, headers=headers)
+            response.raise_for_status()
+            res_json = response.json()
+            
+            results = res_json.get('results', {})
+            self.ns_type = results.get('ns_type', 'valuedomain1')
+            self.ttl = results.get('ttl', '1200')
+            
+            return results.get('records', '')
+        except requests.exceptions.RequestException as e:
+            raise certbot.errors.PluginError(f'Failed to get DNS records from Value Domain API: {e}')
 
-    def _moddns(self, **kwargs):
-        return self.session.get('https://www.value-domain.com/moddns.php', **kwargs)
-
-    def get_dns_records(self, domain):
-        response = self._moddns(params={'action': 'moddns2', 'domainname': domain})
-        soup = BeautifulSoup(response.text, features='html.parser')
-        form = soup.find('form', attrs={'name': 'formMAIN'})
-
-        return form.find('textarea', attrs={'name': 'records'}).contents[0]
-
-    def set_dns_records(self, domain, records):
-        response = self._moddns(params={'action': 'moddns2', 'domainname': domain})
-        soup = BeautifulSoup(response.text, features='html.parser')
-        form = soup.find('form', attrs={'name': 'formMAIN'})
-
-        data = {}
-        for el in form.find_all('input'):
-            data[el.attrs['name']] = el.attrs['value']
-        data['records'] = records
-
-        self.session.post(requests.compat.urljoin(response.url, form.attrs['action']), data=data)
+    def set_dns_records(self, records):
+        url = f'https://api.value-domain.com/v1/domains/{self.root_domain}/dns'
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json'
+        }
+        data = {
+            'ns_type': self.ns_type,
+            'records': records,
+            'ttl': self.ttl
+        }
+        try:
+            response = self.session.put(url, headers=headers, json=data)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise certbot.errors.PluginError(f'Failed to update DNS records via Value Domain API: {e}')
 
 
 @zope.interface.implementer(certbot.interfaces.IAuthenticator)
 @zope.interface.provider(certbot.interfaces.IPluginFactory)
 class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
-    """DNS Authenticator for value-domain.
-    """
 
-    description = 'Obtain certificates using a DNS TXT record (if you are using value-domain for DNS).'
+    description = 'Obtain certificates using a DNS TXT record (if you are using value-domain API for DNS).'
 
     def __init__(self, *args, **kwargs):
         super(Authenticator, self).__init__(*args, **kwargs)
@@ -65,66 +71,53 @@ class Authenticator(certbot.plugins.dns_common.DNSAuthenticator):
         self.api = ValueDomain()
 
     @classmethod
-    def add_parser_arguments(cls, add):  # pylint: disable=arguments-differ
+    def add_parser_arguments(cls, add):
         super(Authenticator, cls).add_parser_arguments(add)
-        # https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
         add('credentials',
-            # default=os.path.join(certbot.compat.misc.get_default_folder('config'), 'value-domain.ini'),
             metavar='PATH',
             default='/etc/letsencrypt/valuedomain.ini',
             help='Path to credentials INI file.')
         add('max-propagation-seconds',
             type=int,
             metavar='SECONDS',
-            default=3600,
+            default=1200,
             help='The number of maximum seconds to watch for DNS to propagate before asking the ACME server '
                  'to verify the DNS record.')
 
-    def more_info(self):  # pylint: disable=missing-docstring,no-self-use
-        return 'This plugin configures a DNS TXT record to respond to a dns-01 challenge using ' + \
-                'value-domain web.'
+    def more_info(self):
+        return 'This plugin configures a DNS TXT record to respond to a dns-01 challenge using value-domain API.'
 
-    def _setup_credentials(self):  # pylint: disable=missing-docstring
+    def _setup_credentials(self):
         self.credentials = self._configure_credentials(
             'credentials',
             'value-domain credentials INI file',
             {
-                'username': 'Username of the value-domain account.',
-                'password': 'Password of the value-domain account.',
+                'api_key': 'API Key for the value-domain account.',
+                'root_domain': 'Your registered root domain in Value Domain.'
             }
         )
+        self.api.login(self.credentials.conf('api_key'), self.credentials.conf('root_domain'))
 
-        self.api.login(self.credentials.conf('username'), self.credentials.conf('password'))
+    def _perform(self, domain, validation_name, validation):
+        records = self.api.get_dns_records()
 
-    def _perform(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        records = self.api.get_dns_records(domain)
-        self.api.set_dns_records(
-            domain, records + '\n' + self._build_record_string(domain, validation_name, validation))
+        record_line = f'txt {validation_name} {validation}'
 
-        t = time.time()
-        while (time.time() - t) < self.conf('max-propagation-seconds'):
+        self.api.set_dns_records(records.strip() + '\n' + record_line)
 
-            if validation in subprocess.run(['nslookup', '-type=txt', validation_name], stdout=subprocess.PIPE,
-                                            stderr=subprocess.DEVNULL, universal_newlines=True).stdout:
-                break
+        logger.info("Sleeping 30 seconds for Value Domain DNS global propagation...")
+        time.sleep(30)
 
-            time.sleep(self.conf('propagation-seconds'))
-
-        else:
-            raise certbot.errors.PluginError('max-propagation-seconds is exceeded.')
-
-    def _cleanup(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        records = self.api.get_dns_records(domain).splitlines()
-        record = self._build_record_string(domain, validation_name, validation)
+    def _cleanup(self, domain, validation_name, validation):
+        records = self.api.get_dns_records().splitlines()
+        record = f'txt {validation_name} {validation}'
 
         try:
-            records.remove(record)
-            self.api.set_dns_records(domain, '\n'.join(records))
+            if record in records:
+                records.remove(record)
+            else:
+                records = [line for line in records if record.strip() not in line.strip()]
+
+            self.api.set_dns_records('\n'.join(records))
         except LookupError:
             logger.exception('Failed to cleanup, validation record (%s) is not found.', record)
-
-    def _build_record_string(self, domain, validation_name, validation):  # pylint: disable=missing-docstring
-        assert validation_name.endswith('.' + domain)
-        subdomain = validation_name[:-(1 + len(domain))]
-
-        return 'txt %s %s' % (subdomain, validation)
