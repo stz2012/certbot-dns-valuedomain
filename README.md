@@ -44,6 +44,17 @@ pip install -e .
 - ValueDomain account with API access
 - Domain managed by ValueDomain
 
+### Python Version Support
+
+| Python Version | Status | Notes |
+|---------------|--------|-------|
+| < 3.9 | ❌ Not supported | Use plugin version 0.x for older Python |
+| 3.9 | ✅ Supported | Minimum version |
+| 3.10 | ✅ Supported | Stable |
+| 3.11 | ✅ Supported | **Recommended** |
+| 3.12 | ✅ Supported | Latest stable |
+| 3.13+ | 🔄 Testing | Should work, not officially tested |
+
 ## Configuration
 
 ### Named Arguments

@@ -5,17 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Planned
-- Support for multiple domains in single credentials file
-- Enhanced logging options with configurable log levels
-- Docker container support
-- Integration tests with ValueDomain API sandbox
-- Performance optimizations for batch operations
-- Configuration file validation utility
-- Automatic credential rotation support
-
 ## [1.2.0] - 2026-06-12
 
 ### Added
@@ -119,7 +108,7 @@ pip install --upgrade certbot-dns-valuedomain
 ```
 
 #### Compatibility:
-- Python: 3.6, 3.7, 3.8, 3.9, 3.10, 3.11
+- Python: 3.9, 3.10, 3.11, 3.12
 - Certbot: >= 1.1.0
 - OS: Linux, macOS, Windows
 
@@ -133,7 +122,7 @@ pip install --upgrade certbot-dns-valuedomain
 
 | Version | Release Date | Status | Major Changes |
 |---------|--------------|--------|---------------|
-| 1.2.0 | 2026-06-12 | Stable | Refactor:  |
+| 1.2.0 | 2026-06-12 | Stable | Refactor: CI/CD pipeline with GitHub Actions |
 | 1.1.0 | 2026-06-08 | Stable | Refactor: Official DNS API Support |
 | 1.0.0 | 2019-03-30 | Stable | Initial stable release |
 
