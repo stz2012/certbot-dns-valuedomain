@@ -3,7 +3,7 @@
 import logging
 import time
 import requests
-from typing import Optional, Callable
+from typing import Optional, Callable, List, Dict, Any
 
 from certbot import errors
 from certbot.plugins import dns_common
@@ -79,7 +79,6 @@ class Authenticator(dns_common.DNSAuthenticator):
     def _get_valuedomain_client(self) -> "ValueDomainClient":
         """Get or create ValueDomain API client."""
         if not self._client:
-            # credentials が None でないことを確認
             if not self.credentials:
                 raise errors.PluginError("Credentials not configured")
 
@@ -125,7 +124,14 @@ class ValueDomainClient:
         self.timeout = timeout
         self.retry_count = retry_count
         self.session = requests.Session()
-        self.session.headers.update({"User-Agent": f"certbot-dns-valuedomain/1.0.0"})
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "certbot-dns-valuedomain/1.0.0",
+            }
+        )
 
     def add_txt_record(
         self, record_name: str, record_content: str, record_ttl: int = 60
@@ -145,12 +151,32 @@ class ValueDomainClient:
         # 既存のDNSレコードを取得
         current_records = self._get_dns_records()
 
-        # 新しいTXTレコードを追加
-        txt_record = f"txt {record_name} {record_content} {record_ttl}"
-        updated_records = current_records + [txt_record]
+        # 新しいTXTレコードを作成
+        # record_nameからドメイン部分を削除してホスト名のみにする
+        host = record_name.replace(f".{self.domain}", "").replace(self.domain, "")
+        if host == "":
+            host = "@"
+
+        new_record = {
+            "type": "TXT",
+            "name": host,
+            "value": record_content,
+            "ttl": record_ttl,
+        }
+
+        # 既存のレコードに追加（重複チェック）
+        records = current_records.copy()
+        # 同じTXTレコードが既にある場合は追加しない
+        if not any(
+            r.get("type") == "TXT"
+            and r.get("name") == host
+            and r.get("value") == record_content
+            for r in records
+        ):
+            records.append(new_record)
 
         # DNSレコードを更新
-        self._set_dns_records(updated_records)
+        self._set_dns_records(records)
 
         logger.info(f"Successfully added TXT record for {record_name}")
 
@@ -169,14 +195,19 @@ class ValueDomainClient:
         # 既存のDNSレコードを取得
         current_records = self._get_dns_records()
 
+        # record_nameからドメイン部分を削除してホスト名のみにする
+        host = record_name.replace(f".{self.domain}", "").replace(self.domain, "")
+        if host == "":
+            host = "@"
+
         # 該当するTXTレコードを削除
         updated_records = [
             record
             for record in current_records
             if not (
-                record.startswith("txt")
-                and record_name in record
-                and record_content in record
+                record.get("type") == "TXT"
+                and record.get("name") == host
+                and record.get("value") == record_content
             )
         ]
 
@@ -185,7 +216,7 @@ class ValueDomainClient:
 
         logger.info(f"Successfully deleted TXT record for {record_name}")
 
-    def _get_dns_records(self) -> list:
+    def _get_dns_records(self) -> List[Dict[str, Any]]:
         """Get current DNS records.
 
         Returns:
@@ -194,19 +225,27 @@ class ValueDomainClient:
         Raises:
             errors.PluginError: If API request fails
         """
-        url = f"{self.API_BASE_URL}/v1/getdns"
-        params = {"domain": self.domain, "apikey": self.api_key}
+        url = f"{self.API_BASE_URL}/domains/{self.domain}/dns"
 
-        response = self._make_request("GET", url, params=params)
+        response = self._make_request("GET", url)
 
-        # レスポンスからDNSレコードを解析
-        dns_data = response.text.strip()
-        if not dns_data:
-            return []
+        try:
+            data = response.json()
+            # APIレスポンスの形式に応じて調整
+            # 例: {"records": [...]} の場合
+            if isinstance(data, dict) and "records" in data:
+                return data["records"]
+            # 例: [...] の場合
+            elif isinstance(data, list):
+                return data
+            else:
+                logger.warning(f"Unexpected API response format: {data}")
+                return []
+        except ValueError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            raise errors.PluginError(f"Invalid JSON response from API: {e}")
 
-        return [line.strip() for line in dns_data.split("\n") if line.strip()]
-
-    def _set_dns_records(self, records: list) -> None:
+    def _set_dns_records(self, records: List[Dict[str, Any]]) -> None:
         """Set DNS records.
 
         Args:
@@ -215,14 +254,13 @@ class ValueDomainClient:
         Raises:
             errors.PluginError: If API request fails
         """
-        url = f"{self.API_BASE_URL}/v1/setdns"
-        data = {
-            "domain": self.domain,
-            "apikey": self.api_key,
-            "record": "\n".join(records),
-        }
+        url = f"{self.API_BASE_URL}/domains/{self.domain}/dns"
 
-        self._make_request("POST", url, data=data)
+        # APIに送信するデータ形式
+        # ドキュメントに応じて調整が必要
+        payload = {"records": records}
+
+        self._make_request("PUT", url, json=payload)
 
     def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
         """Make HTTP request with retry logic.
@@ -257,11 +295,22 @@ class ValueDomainClient:
                     time.sleep(retry_after)
                     continue
 
-                response.raise_for_status()
+                # ステータスコードチェック
+                if response.status_code >= 400:
+                    error_msg = f"API request failed with status {response.status_code}"
+                    try:
+                        error_data = response.json()
+                        if isinstance(error_data, dict) and "message" in error_data:
+                            error_msg += f": {error_data['message']}"
+                        else:
+                            error_msg += f": {error_data}"
+                    except ValueError:
+                        error_msg += f": {response.text}"
 
-                # ValueDomain APIのエラーチェック
-                if "error" in response.text.lower():
-                    raise errors.PluginError(f"ValueDomain API error: {response.text}")
+                    logger.error(error_msg)
+                    raise errors.PluginError(error_msg)
+
+                response.raise_for_status()
 
                 return response
 
@@ -294,7 +343,7 @@ class ValueDomainClient:
         safe_data = data.copy()
 
         # マスクするキーのリスト
-        sensitive_keys = ["apikey", "api_key", "password", "token"]
+        sensitive_keys = ["apikey", "api_key", "password", "token", "authorization"]
 
         for key in sensitive_keys:
             if key in safe_data:
@@ -310,5 +359,10 @@ class ValueDomainClient:
                 if key in safe_data["data"]:
                     safe_data["data"] = safe_data["data"].copy()
                     safe_data["data"][key] = "***MASKED***"
+
+            if "json" in safe_data and isinstance(safe_data["json"], dict):
+                if key in safe_data["json"]:
+                    safe_data["json"] = safe_data["json"].copy()
+                    safe_data["json"][key] = "***MASKED***"
 
         return safe_data
