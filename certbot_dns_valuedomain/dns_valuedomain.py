@@ -106,18 +106,13 @@ class ValueDomainClient:
         timeout: int = DEFAULT_TIMEOUT,
         retry_count: int = DEFAULT_RETRY_COUNT,
     ):
-        """Initialize ValueDomain API client.
-
-        Args:
-            api_key: ValueDomain API key
-            domain: Domain name to manage
-            timeout: Request timeout in seconds
-            retry_count: Number of retries on failure
-        """
         self.api_key = api_key
         self.domain = domain
         self.timeout = timeout
         self.retry_count = retry_count
+        # GET で取得した値を PUT 時に維持するため保持
+        self._ns_type: Optional[int] = None
+        self._ttl: Optional[int] = None
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -131,130 +126,123 @@ class ValueDomainClient:
     def add_txt_record(
         self, record_name: str, record_content: str, record_ttl: int = 60
     ) -> None:
-        """Add TXT record.
-
-        Args:
-            record_name: DNS record name
-            record_content: TXT record content
-            record_ttl: TTL value
-
-        Raises:
-            errors.PluginError: If API request fails
-        """
+        """Add TXT record."""
         logger.info(f"Adding TXT record for {record_name}")
 
-        # 既存のDNSレコードを取得
         current_records = self._get_dns_records()
 
-        # 新しいTXTレコードを作成
-        # record_nameからドメイン部分を削除してホスト名のみにする
-        host = record_name.replace(f".{self.domain}", "").replace(self.domain, "")
-        if host == "":
-            host = "@"
+        host = self._to_host(record_name)
 
         new_record = {
-            "type": "TXT",
+            "type": "txt",
             "name": host,
             "value": record_content,
-            "ttl": record_ttl,
         }
 
-        # 既存のレコードに追加（重複チェック）
         records = current_records.copy()
-        # 同じTXTレコードが既にある場合は追加しない
         if not any(
-            r.get("type") == "TXT"
+            r.get("type") == "txt"
             and r.get("name") == host
             and r.get("value") == record_content
             for r in records
         ):
             records.append(new_record)
 
-        # DNSレコードを更新
         self._set_dns_records(records)
-
         logger.info(f"Successfully added TXT record for {record_name}")
 
     def del_txt_record(self, record_name: str, record_content: str) -> None:
-        """Delete TXT record.
-
-        Args:
-            record_name: DNS record name
-            record_content: TXT record content to delete
-
-        Raises:
-            errors.PluginError: If API request fails
-        """
+        """Delete TXT record."""
         logger.info(f"Deleting TXT record for {record_name}")
 
-        # 既存のDNSレコードを取得
         current_records = self._get_dns_records()
+        host = self._to_host(record_name)
 
-        # record_nameからドメイン部分を削除してホスト名のみにする
-        host = record_name.replace(f".{self.domain}", "").replace(self.domain, "")
-        if host == "":
-            host = "@"
-
-        # 該当するTXTレコードを削除
         updated_records = [
             record
             for record in current_records
             if not (
-                record.get("type") == "TXT"
+                record.get("type") == "txt"
                 and record.get("name") == host
                 and record.get("value") == record_content
             )
         ]
 
-        # DNSレコードを更新
         self._set_dns_records(updated_records)
-
         logger.info(f"Successfully deleted TXT record for {record_name}")
+
+    def _to_host(self, record_name: str) -> str:
+        """FQDN からホスト名部分のみを取り出す。"""
+        host = record_name.replace(f".{self.domain}", "").replace(self.domain, "")
+        if host == "":
+            host = "@"
+        return host
 
     def _get_dns_records(self) -> List[Dict[str, Any]]:
         """Get current DNS records.
 
-        Returns:
-            List of DNS records
-
-        Raises:
-            errors.PluginError: If API request fails
+        API は results.records を「改行区切りの文字列」で返す。
         """
         url = f"{self.API_BASE_URL}/domains/{self.domain}/dns"
-
         response = self._make_request("GET", url)
 
         try:
             data = response.json()
-            # APIレスポンスの形式に応じて調整
-            # 例: {"records": [...]} の場合
-            if isinstance(data, dict) and "records" in data:
-                return data["records"]
-            # 例: [...] の場合
-            elif isinstance(data, list):
-                return data
-            else:
-                logger.warning(f"Unexpected API response format: {data}")
-                return []
         except ValueError as e:
             logger.error(f"Failed to parse JSON response: {e}")
             raise errors.PluginError(f"Invalid JSON response from API: {e}")
 
+        results = data.get("results", {}) if isinstance(data, dict) else {}
+
+        # PUT 時に維持するため ns_type / ttl を保存
+        self._ns_type = results.get("ns_type")
+        self._ttl = results.get("ttl")
+
+        records_str = results.get("records") or ""
+        return self._parse_records(records_str)
+
     def _set_dns_records(self, records: List[Dict[str, Any]]) -> None:
         """Set DNS records.
 
-        Args:
-            records: List of DNS records to set
-
-        Raises:
-            errors.PluginError: If API request fails
+        records は「改行区切りの文字列」に変換し、ns_type / ttl と共に送信する。
         """
         url = f"{self.API_BASE_URL}/domains/{self.domain}/dns"
 
-        # APIに送信するデータ形式
-        payload = {"records": records}
+        payload: Dict[str, Any] = {
+            "records": self._format_records(records),
+        }
+        # GET で取得できていれば維持する
+        if self._ns_type is not None:
+            payload["ns_type"] = self._ns_type
+        if self._ttl is not None:
+            payload["ttl"] = self._ttl
 
         self._make_request("PUT", url, json=payload)
+
+    @staticmethod
+    def _parse_records(records_str: str) -> List[Dict[str, Any]]:
+        """「種別 ホスト名 値」形式の文字列をパースする。"""
+        records: List[Dict[str, Any]] = []
+        for line in records_str.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # 最大3分割: 種別 / ホスト名 / 値（値中の空白を保持）
+            parts = line.split(None, 2)
+            if len(parts) < 3:
+                logger.debug(f"Skipping unrecognized record line: {line!r}")
+                continue
+            rtype, host, value = parts[0].lower(), parts[1], parts[2]
+            records.append({"type": rtype, "name": host, "value": value})
+        return records
+
+    @staticmethod
+    def _format_records(records: List[Dict[str, Any]]) -> str:
+        """パース済みレコードを API 形式の文字列へ戻す。"""
+        lines = []
+        for r in records:
+            lines.append(f"{r['type']} {r['name']} {r['value']}")
+        return "\n".join(lines)
 
     def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
         """Make HTTP request with retry logic.
