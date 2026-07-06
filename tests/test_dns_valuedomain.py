@@ -204,9 +204,7 @@ class ValueDomainClientTest(unittest.TestCase):
         records = self.client._parse_records(records_str)
 
         self.assertEqual(2, len(records))
-        self.assertEqual(
-            {"type": "a", "name": "@", "value": "192.0.2.1"}, records[0]
-        )
+        self.assertEqual({"type": "a", "name": "@", "value": "192.0.2.1"}, records[0])
         # 値に空白が含まれる場合も保持されること
         self.assertEqual(
             {"type": "txt", "name": "_acme-challenge", "value": "hello world"},
@@ -220,9 +218,7 @@ class ValueDomainClientTest(unittest.TestCase):
         ]
         formatted = self.client._format_records(records)
 
-        self.assertEqual(
-            "a @ 192.0.2.1\ntxt _acme-challenge validation", formatted
-        )
+        self.assertEqual("a @ 192.0.2.1\ntxt _acme-challenge validation", formatted)
 
     def test_to_host(self):
         self.assertEqual(
