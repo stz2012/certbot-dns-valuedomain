@@ -97,7 +97,7 @@ class Authenticator(dns_common.DNSAuthenticator):
 class ValueDomainClient:
     """Client for ValueDomain API"""
 
-    API_BASE_URL = "https://api.value-domain.com"
+    API_BASE_URL = "https://api.value-domain.com/v1"
 
     def __init__(
         self,
