@@ -64,14 +64,24 @@ class ValueDomainClientTest(unittest.TestCase):
 
         self.client = ValueDomainClient(API_KEY, DOMAIN_NAME, timeout=10, retry_count=3)
 
+    def _make_get_response(self, records_str, ns_type=1, ttl=3600):
+        """results 形式の GET レスポンスを生成する。"""
+        resp = mock.MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {
+            "results": {
+                "domainname": DOMAIN_NAME,
+                "ns_type": ns_type,
+                "records": records_str,
+                "ttl": ttl,
+            }
+        }
+        return resp
+
     @mock.patch("requests.Session.request")
     def test_add_txt_record(self, mock_request):
-        # GETレスポンス（既存のレコード）
-        mock_get_response = mock.MagicMock()
-        mock_get_response.status_code = 200
-        mock_get_response.json.return_value = {
-            "records": [{"type": "A", "name": "@", "value": "192.0.2.1", "ttl": 300}]
-        }
+        # GETレスポンス（既存のレコード：改行区切り文字列）
+        mock_get_response = self._make_get_response("a @ 192.0.2.1")
 
         # PUTレスポンス（更新成功）
         mock_put_response = mock.MagicMock()
@@ -88,21 +98,24 @@ class ValueDomainClientTest(unittest.TestCase):
         # PUT
         self.assertEqual("PUT", mock_request.call_args_list[1][0][0])
 
+        # PUT のボディを検証（records は文字列で、ns_type / ttl が維持される）
+        put_kwargs = mock_request.call_args_list[1][1]
+        payload = put_kwargs["json"]
+        self.assertIn("records", payload)
+        self.assertIsInstance(payload["records"], str)
+        # 既存の A レコードと新規 TXT レコードが含まれること
+        self.assertIn("a @ 192.0.2.1", payload["records"])
+        self.assertIn("txt _acme-challenge test-validation", payload["records"])
+        # GET で取得した ns_type / ttl が維持されること
+        self.assertEqual(1, payload["ns_type"])
+        self.assertEqual(3600, payload["ttl"])
+
     @mock.patch("requests.Session.request")
     def test_del_txt_record(self, mock_request):
         # GETレスポンス（TXTレコードを含む）
-        mock_get_response = mock.MagicMock()
-        mock_get_response.status_code = 200
-        mock_get_response.json.return_value = {
-            "records": [
-                {
-                    "type": "TXT",
-                    "name": "_acme-challenge",
-                    "value": "test-validation",
-                    "ttl": 60,
-                }
-            ]
-        }
+        mock_get_response = self._make_get_response(
+            "a @ 192.0.2.1\ntxt _acme-challenge test-validation"
+        )
 
         # PUTレスポンス（削除成功）
         mock_put_response = mock.MagicMock()
@@ -114,6 +127,12 @@ class ValueDomainClientTest(unittest.TestCase):
         self.client.del_txt_record("_acme-challenge.example.com", "test-validation")
 
         self.assertEqual(2, mock_request.call_count)
+
+        # PUT のボディを検証（TXT レコードが削除されていること）
+        put_kwargs = mock_request.call_args_list[1][1]
+        payload = put_kwargs["json"]
+        self.assertIn("a @ 192.0.2.1", payload["records"])
+        self.assertNotIn("txt _acme-challenge test-validation", payload["records"])
 
     @mock.patch("requests.Session.request")
     def test_api_error(self, mock_request):
@@ -131,7 +150,7 @@ class ValueDomainClientTest(unittest.TestCase):
 
         mock_response_200 = mock.MagicMock()
         mock_response_200.status_code = 200
-        mock_response_200.json.return_value = {"records": []}
+        mock_response_200.json.return_value = {"results": {"records": ""}}
 
         mock_request.side_effect = [mock_response_429, mock_response_200]
 
@@ -156,10 +175,7 @@ class ValueDomainClientTest(unittest.TestCase):
 
     @mock.patch("requests.Session.request")
     def test_get_dns_records_empty(self, mock_request):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"records": []}
-        mock_request.return_value = mock_response
+        mock_request.return_value = self._make_get_response("")
 
         records = self.client._get_dns_records()
 
@@ -167,21 +183,54 @@ class ValueDomainClientTest(unittest.TestCase):
 
     @mock.patch("requests.Session.request")
     def test_get_dns_records_multiple(self, mock_request):
-        mock_response = mock.MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "records": [
-                {"type": "A", "name": "@", "value": "192.0.2.1", "ttl": 300},
-                {"type": "TXT", "name": "test", "value": "validation", "ttl": 60},
-            ]
-        }
-        mock_request.return_value = mock_response
+        mock_request.return_value = self._make_get_response(
+            "a @ 192.0.2.1\ntxt test validation"
+        )
 
         records = self.client._get_dns_records()
 
         self.assertEqual(2, len(records))
-        self.assertEqual("A", records[0]["type"])
-        self.assertEqual("TXT", records[1]["type"])
+        self.assertEqual("a", records[0]["type"])
+        self.assertEqual("@", records[0]["name"])
+        self.assertEqual("192.0.2.1", records[0]["value"])
+        self.assertEqual("txt", records[1]["type"])
+        self.assertEqual("test", records[1]["name"])
+        self.assertEqual("validation", records[1]["value"])
+
+    # --- パース / フォーマットの単体テストを追加 ---
+
+    def test_parse_records(self):
+        records_str = "a @ 192.0.2.1\ntxt _acme-challenge hello world\n\n# comment"
+        records = self.client._parse_records(records_str)
+
+        self.assertEqual(2, len(records))
+        self.assertEqual(
+            {"type": "a", "name": "@", "value": "192.0.2.1"}, records[0]
+        )
+        # 値に空白が含まれる場合も保持されること
+        self.assertEqual(
+            {"type": "txt", "name": "_acme-challenge", "value": "hello world"},
+            records[1],
+        )
+
+    def test_format_records(self):
+        records = [
+            {"type": "a", "name": "@", "value": "192.0.2.1"},
+            {"type": "txt", "name": "_acme-challenge", "value": "validation"},
+        ]
+        formatted = self.client._format_records(records)
+
+        self.assertEqual(
+            "a @ 192.0.2.1\ntxt _acme-challenge validation", formatted
+        )
+
+    def test_to_host(self):
+        self.assertEqual(
+            "_acme-challenge",
+            self.client._to_host("_acme-challenge.example.com"),
+        )
+        self.assertEqual("@", self.client._to_host("example.com"))
+        self.assertEqual("www", self.client._to_host("www.example.com"))
 
 
 if __name__ == "__main__":
